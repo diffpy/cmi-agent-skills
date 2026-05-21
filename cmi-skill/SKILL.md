@@ -111,15 +111,24 @@ and then refine the `new_element_occupancy` variable together with other variabl
 
 Activate when user specifically asks to unconstrain spacegroup parameters to break the spacegroup symmertry constraints.
 
-After the spacegroup symmertry constraints are imposed:
-1. find to which parameterset the parameter belongs.
-2. call the unconstrain method of the parameterset to unconstrain the parameter.
+Currently supported parameters: a, b, c, alpha, beta, gamma, atom.x, atom.y, atom.z. 
 
-a, b, c, alpha, beta, gamma parameters belong to the parameterset `pdfgenerator.phase.lattice`
-x,y,z and adp(uiso, biso) parameter belongs to the parameterset `pdfgenerator.phase.getScatters()[i]`,
-where `i` is the index of the atom in the list `pdfgenerator.phase.getScatters()`
+If a parameter is not supported here:
+1. Verify if it is a spacegroup parameter(lattice parameters, atoms positions, and atomicc displacement parameters).
+2. Give instructions about how to unconstrain them.
 
-If the parameters are constrained via `constrainAsSpaceGroup`, the existing constraints are
-not effective before iteration or  `sgpars._constrainLattice()` is called. To unconstrain
-on specific parameter among the spacegroup constrained parameters, first call `sgpars._constrainLattice()`,
-and then call the `uncsontrain` method in the corresponding parameterset.
+If it is a spacegroup parameter:
+1. Complete the script as usual
+2. Add the following changes after ``constrainAsSpaceGroup`` is 
+called:
+   1. Let the 'ParameterSet' to which the parameter belongs constrain all the parameters.
+   2. Then let the ``ParameterSet`` unconstrain the specific parameter.
+   
+You can 
+1. constrain the lattice parameter set by `sgpars._constrainLattice()`
+2. constrain the xyz parameter set by `sgpars._constrainXYZs()`
+suppose `sgpars` is the object returned by `constrainAsSpacegroup`
+   
+a, b, c parameter is created as `pdfgenerator.phase.lattice.<parameter-name>` and belongs to the parameterset `pdfgenerator.phase.lattice`
+xyz parametetr is created as `pdfgenerator.phase.getScatters()[<atom-index>].<parameter-name>` and belongs to the parameterset `pdfgenerator.phase.getScatters()`
+
