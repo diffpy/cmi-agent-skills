@@ -1,134 +1,116 @@
 ---
-name: cmi-skill
-description: write python code utilizing `diffpy.cmi` module to refine material structure models against experiment data. Used when researching the structure of materials with experimental pair-distribution-function(PDF).
+description: Playbook for using the diffpy_apps MCP server
 ---
 
-# Introduction
+# diffpy_apps MCP server: how to use it
 
-For claude code agent: check [code-examples](code-examples.md) for example code snippets when needed.
+## General Guidelines
 
-# How to write a `diffpy.cmi` script for PDF (pair-distribution-function) refinement
+1. Before starting, call `list_models()` / `list_profiles()` first (session is a shared global singleton, not per-conversation). Call `clear()` to reset.
+2. Always ask if you are unsure about the refinement settings. Do not make any
+   assumptions.
 
-1. write code to create a structural model.
-2. refine the structural model against the experiment data.
+## MCP call-format rules
 
-# Advance: temperature/composition series
+- **Always pass explicit `model_name`/`profile_name`.** `add_equation_model`/`add_pdf_model` default `model_name` to a UUID computed once at import time — every omitted call gets the _same_ value. `profile_name` defaults to `None` and gets echoed straight into the confirmation message.
+- **`combine_models(parent_model_name, child_model_names)`: call once per child.** The child is registered into the parent's equation under its own model name. Only an equation model can be a parent.
+- **`add_pdf_model(model_name=..., from_model_name=<existing>)` shares structure, not values.** Lattice/xyz/ADP(Uiso or Biso)/occupancy become the _same_ live object as the source — set them once, on the source, never per clone. Generator params (`scale`, `qdamp`, `qbroad`, `delta1`, `delta2`) are NOT shared — set each clone's separately or tie them with a `solve` constraint. Constrain symmetry on the source **before** cloning.
+- **`solve`**: `profile_names`/`model_names`/`residual_equations`/`weights` must be equal length, one entry per contribution. `constraints` is exactly two dicts: `[0]` helper-variable -> initial value, `[1]` variable -> constraint-equation string. Pass `name=` to inspect later via `list_recipe_parameters`. `include_sgpars=true` auto-adds symmetry-freed structural params instead of listing each one.
+- **Parsing results**: `check_profile_meta`/`list_profiles`/`list_models` -> plain JSON. `get_variable`/`list_model_parameters`/`list_recipe_parameters` -> formatted text (`"Variable 'x': 0.42"`), parse it yourself. `get_model_evaluation`/`get_model_residual` write a JSON array to `data_path`; `get_profile_data` writes `{"xobs":[...], "yobs":[...]}` to `data_path` (no `dyobs`/calculated curve). `solve` returns a fit-report string. Errors come back as `"{ExceptionType}: message"`.
 
-1. Parse out the temperature/Composition from the experiment data file names, or get it from a input variable. `e.g. exp_300K.dat`, `exp_0.2.dat`, ...
-2. From low to high or high to low temperature/composition, for each PDF data, repeat all steps in [How to write a `diffpy.cmi` script for PDF refinement](#how-to-write-a-diffpycmi-script-for-pdf-pair-distribution-function-refinement) for each data obtained at the corresponding temperature/composition.
-3. After each iteration, use the parameter value result as the initial guess for the enxt iteration.
+## Case A — nested equation models (no structure, e.g. fitting `A*sin(a*x)`)
 
-# How to create the structural model
-
-1. initialize profile.
-2. initialize generator.
-3. activate multiprocessing.
-4. initialize contribution
-5. initialize recipe
-6. add usual variables
-7. add constrained variables(spacegroup variables)
-8. constrain the variables if necessary
-9. unconstrain the variables if necessary
-8. Set initial guess of the variables if necessary
-
-# How to create the structural model when multiple phases are presented
-
-Activate only when user input indicates multiple phases are presented.
-
-Repeat the steps in [How to write a `diffpy.cmi` script for PDF refinement](#how-to-write-a-diffpycmi-script-for-pdf-pair-distribution-function-refinement), but
-
-1. Modify the step2. Create an other PDFGenerator instances using the same pattern
-2. Modify the step3. Parallel the other PDFGenerator instances under try block
-3. Modify the step4. Add the other PDFGenerator instances into the FitContribution, and count them in the equation.
-e.g. two phase: "s0*(s1*G1 + (1-s1)*G2)", three phases: "s0*(s1*G1 + s2*G2 + (1-s1-s2)*G3)", ...
-4. Modify the step6. Create the parameters from other PDFGenerator instances.
-5. Modify the step7. Impose the symmertry constraints and create parameters for other PDFGenerator instances.
-6. After the step7
-
-# How to create the structural model when nanoparticle phase is presented
-
-Activate only when user input indicates nanoparticle phases are presented.
-
-Repeat the steps in [How to write a `diffpy.cmi` script for PDF refinement](#how-to-write-a-diffpycmi-script-for-pdf-pair-distribution-function-refinement), but
-
-When initialize contribution
-1. Registre the spherical nanoparticle characteristic function.
-
-When add usual variables in the `FitRecip` instance
-1. Add spherical characteristic function variables in the `FitRecipe` instance.
-
-After adding all variables in the `FitRecipe` instnace,
-1. Restrain the `psize` parameter inside the characteristic function.
-
-
-# How to create the structural model with isotropic ADP (atom displacement parameter) constrained separetely from spacegroup symmertry constraints
-
-Activate only when user input indicates ADP parameters are isotropic and the same for the same elements.
-
-Repeat the steps in [How to write a `diffpy.cmi` script for PDF refinement](#how-to-write-a-diffpycmi-script-for-pdf-pair-distribution-function-refinement), but
-
-When add spacegroup variables in the recipe:
-1. Ignore ADP parameters when impose group symmertry constraints
-2. Constrain the adp from the same elements to be the same during the refinment.
-
-# How to create the structural model with changed composition by inserting/replacing atoms in the specific sites
-
-Activate when user need to change the input structure model by inserting/replacing atoms in the specific sites.
-
-The ratio of the inserted/replaced atom, if is given, is set via the occupancy of the atom in the specific site.
-
-Repeat the steps in [How to write a `diffpy.cmi` script for PDF refinement](#how-to-write-a-diffpycmi-script-for-pdf-pair-distribution-function-refinement), but
-
-1. After loading the structure file, insert/replace atoms in the specific sites according to the composition. 
-e.g.
-```python
-for atom in structure:
-    if "<target-site-element>" in atom.element:
-        stru1.addNewAtom(Atom("<new-element>", xyz=atom.xyz))
+```jsonc
+add_profile_from_arrays(xarray=[...], yarray=[...], profile_name="sine_profile")
+add_equation_model(model_name="sub", equation_str="a*x")
+add_equation_model(model_name="main", equation_str="A*sin(sub)")
+combine_models(parent_model_name="main", child_model_names=["sub"])   // "sub" is registered under its own model name
+set_variables_value(name_value_dict={"main.A": 0.8, "main.sub.a": 0.5})
+solve(profile_names=["sine_profile"], model_names=["main"],
+      variable_names=["main.A", "main.sub.a"], name="sine_fit")
+get_variable(variable_name="main.A")
+get_variable(variable_name="main.sub.a")
 ```
-2. If the insert/replace ratio is given, after insert the atom, set the occupancy of the atoms in the specific sites. Atoms in the same sites should have the occupancy sum up to 1.
-e.g. For two element site:
-```python
-for atom in structure:
-    if "<target-site-element>" in atom.element:
-        atom.occupancy = 1-new_occupancy
-    if "<new-element>" in atom.element:
-        atom.occupancy = new_occupancy
+
+## Case B — single PDF model (e.g. Ni), optionally wrapped for a free scale
+
+```jsonc
+add_profile_from_file(profile_path="Ni.gr", profile_name="ni_profile")
+update_profile_meta(profile_name="ni_profile", meta={"qmin": 0.1})
+set_profile_calculation_range(profile_name="ni_profile", xmin=1.5, xmax=20, dx=0.01)
+
+add_pdf_model(model_name="pdf", structure_file_path="Ni.cif")
+constrain_pdf_model_space_group_symmetry(model_name="pdf")   // omit space_group to auto-detect
+set_variables_value(name_value_dict={"pdf.scale": 0.4, "pdf.delta2": 2, "pdf.qdamp": 0.04, "pdf.qbroad": 0.02})
+solve(profile_names=["ni_profile"], model_names=["pdf"],
+      variable_names=["pdf.scale", "pdf.delta2", "pdf.qdamp", "pdf.qbroad"],
+      include_sgpars=true, name="ni_fit")
+
+// -- optional: promote to a free scale factor via a wrapping equation model --
+set_variables_value(name_value_dict={"pdf.scale": 1})   // freeze pdf's own scale at 1
+add_equation_model(model_name="ni_model", equation_str="s*pdf")
+combine_models(parent_model_name="ni_model", child_model_names=["pdf"])
+set_variables_value(name_value_dict={"ni_model.s": 0.4})
+solve(profile_names=["ni_profile"], model_names=["ni_model"],
+      variable_names=["ni_model.s", "pdf.delta2", "pdf.qdamp", "pdf.qbroad"],
+      include_sgpars=true, name="ni_fit_scaled")
+get_variable(variable_name="ni_model.pdf.phase.lattice.a")   // combined child addressed as parent.child.param
 ```
-3. If the composition is a variable to be determined, create a corresponding variable in the recipe, and set the constraint mentioned above.
-e.g. For two element site:
-```python
-new_occupancy = recipe.addVar("new_element_occupancy", value=0.5, bounds=(0,1))
-for atom in recipe.<contribution_name>.<pdfgegnerator_name>.phase.atoms:
-    if "<target-site-element>" in atom.element:
-        recipe.constrain(atom.occupancy, "1.0 - new_element_occupancy")
-    if "<new-element>" in atom.element:
-        recipe.constrain(atom.occupancy, "new_element_occupancy")
+
+## Case C — multi-contribution joint refinement (Ni x-ray + Ni neutron + Si x-ray + mixed Si–Ni x-ray)
+
+```jsonc
+add_profile_from_file(profile_path="ni-q27r60-xray.gr", profile_name="ni_xray")
+add_profile_from_file(profile_path="ni-q27r100-neutron.gr", profile_name="ni_neutron")
+add_profile_from_file(profile_path="si-q27r60-xray.gr", profile_name="si_xray")
+add_profile_from_file(profile_path="si90ni10-q27r60-xray.gr", profile_name="total_xray")
+set_profile_calculation_range(profile_name="ni_xray", xmax=20)
+set_profile_calculation_range(profile_name="ni_neutron", xmax=20)
+set_profile_calculation_range(profile_name="si_xray", xmax=20)
+set_profile_calculation_range(profile_name="total_xray", xmax=20)
+
+add_pdf_model(model_name="pdf_ni", structure_file_path="Ni.cif")
+constrain_pdf_model_space_group_symmetry(model_name="pdf_ni")   // constrain BEFORE cloning
+add_pdf_model(model_name="pdf_ni_neutron", from_model_name="pdf_ni")
+add_pdf_model(model_name="pdf_ni_partial", from_model_name="pdf_ni")
+
+add_pdf_model(model_name="pdf_si", structure_file_path="Si.cif")
+constrain_pdf_model_space_group_symmetry(model_name="pdf_si")
+add_pdf_model(model_name="pdf_si_partial", from_model_name="pdf_si")
+
+add_equation_model(model_name="main", equation_str="scale * (pdf_ni_partial + pdf_si_partial)")
+combine_models(parent_model_name="main", child_model_names=["pdf_ni_partial"])
+combine_models(parent_model_name="main", child_model_names=["pdf_si_partial"])
+
+set_variables_value(name_value_dict={
+  "pdf_ni.qdamp": 0.055, "pdf_ni_neutron.qdamp": 0.030, "pdf_ni_partial.qdamp": 0.052,
+  "pdf_si.qdamp": 0.051, "pdf_si_partial.qdamp": 0.052,
+  "main.scale": 1.0, "pdf_si.scale": 1.0, "pdf_ni.scale": 1.0
+})
+
+solve(
+  profile_names=["ni_xray", "ni_neutron", "si_xray", "total_xray"],
+  model_names=["pdf_ni", "pdf_ni_neutron", "pdf_si", "main"],
+  residual_equations=["resv", "resv", "resv", "resv"],
+  variable_names=[
+    "pdf_ni.scale", "pdf_si.scale", "pdf_ni_neutron.scale", "main.scale", "pscale",
+    "pdf_ni.phase.lattice.a", "pdf_ni.phase.Ni0.Uiso", "pdf_si.phase.a", "pdf_si.phase.Si.Biso",
+    "ni_delta2", "si_delta2"
+  ],
+  constraints=[
+    {"pscale": 0.8, "ni_delta2": 2.5, "si_delta2": 2.5},
+    {
+      "pdf_ni.delta2": "ni_delta2", "pdf_ni_neutron.delta2": "ni_delta2", "main.pdf_ni_partial.delta2": "ni_delta2",
+      "pdf_si.delta2": "si_delta2", "main.pdf_si_partial.delta2": "si_delta2",
+      "main.pdf_si_partial.scale": "1 - pscale", "main.pdf_ni_partial.scale": "pscale"
+    }
+  ],
+  name="multi_fit"
+)
+
+get_variable(variable_name="pdf_ni.phase.lattice.a")
+get_variable(variable_name="pdf_ni.phase.Ni0.Uiso")   // Biso equivalent = value * 8 * pi^2
+get_variable(variable_name="pdf_si.phase.Si.Biso")
 ```
-and then refine the `new_element_occupancy` variable together with other variables in the recipe.
 
-# How to unconstrain spacegroup parameters
-
-Activate when user specifically asks to unconstrain spacegroup parameters to break the spacegroup symmertry constraints.
-
-Currently supported parameters: a, b, c, alpha, beta, gamma, atom.x, atom.y, atom.z. 
-
-If a parameter is not supported here:
-1. Verify if it is a spacegroup parameter(lattice parameters, atoms positions, and atomicc displacement parameters).
-2. Give instructions about how to unconstrain them.
-
-If it is a spacegroup parameter:
-1. Complete the script as usual
-2. Add the following changes after ``constrainAsSpaceGroup`` is 
-called:
-   1. Let the 'ParameterSet' to which the parameter belongs constrain all the parameters.
-   2. Then let the ``ParameterSet`` unconstrain the specific parameter.
-   
-You can 
-1. constrain the lattice parameter set by `sgpars._constrainLattice()`
-2. constrain the xyz parameter set by `sgpars._constrainXYZs()`
-suppose `sgpars` is the object returned by `constrainAsSpacegroup`
-   
-a, b, c parameter is created as `pdfgenerator.phase.lattice.<parameter-name>` and belongs to the parameterset `pdfgenerator.phase.lattice`
-xyz parametetr is created as `pdfgenerator.phase.getScatters()[<atom-index>].<parameter-name>` and belongs to the parameterset `pdfgenerator.phase.getScatters()`
-
+Notes specific to this case: `pdf_ni`/`pdf_ni_neutron`/`pdf_ni_partial` share one structure (clones), so only `pdf_ni.phase.*` needs to be in `variable_names`. `delta2` is generator-level and NOT shared, hence the explicit constraints tying every clone's `delta2` back to one free `ni_delta2`/`si_delta2`. `pscale`/`1 - pscale` splits the mixed `total_xray` contribution's intensity between the Ni and Si partials.
