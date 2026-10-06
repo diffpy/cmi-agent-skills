@@ -1,5 +1,7 @@
 ---
-description: Playbook for using the diffpy_apps MCP server
+name: diffpy-playbook
+description: Playbook for using the diffpy_apps MCP server to perform structure
+  refinement with PDF (Pair Distribution Function) data.
 ---
 
 # diffpy_apps MCP server: how to use it
