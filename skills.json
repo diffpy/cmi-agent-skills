@@ -1,0 +1,7 @@
+{
+    "diffpy-playbook" : {
+        "author": "Yuchen Xiao", 
+        "maintainer": "Simon Billinge",
+        "maintainer_email": "sbillinge@ucla.edu"
+    }
+}
