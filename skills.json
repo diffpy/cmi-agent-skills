@@ -1,7 +1,8 @@
 {
     "diffpy-playbook" : {
+        "description": "A general-purpose playbook for diffpy cmi-agentic-ui",
         "author": "Yuchen Xiao", 
         "maintainer": "Simon Billinge",
-        "maintainer_email": "sbillinge@ucla.edu"
+        "maintainer_email": "sbillinge@ucsb.edu"
     }
 }

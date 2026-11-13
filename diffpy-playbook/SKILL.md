@@ -1,7 +1,7 @@
 ---
 name: diffpy-playbook
-description: Playbook for using the diffpy_apps MCP server to perform structure
-  refinement with PDF (Pair Distribution Function) data.
+description: Playbook for using the cmi-agentic-ui MCP server to perform 
+  structure refinement with PDF (Pair Distribution Function) data.
 ---
 
 # diffpy_apps MCP server: how to use it
