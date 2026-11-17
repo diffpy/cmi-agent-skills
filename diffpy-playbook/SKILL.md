@@ -1,6 +1,6 @@
 ---
 name: diffpy-playbook
-description: Playbook for using the cmi-agentic-ui MCP server to perform 
+description: Playbook for using the cmi-agentic-ui MCP server to perform
   structure refinement with PDF (Pair Distribution Function) data.
 ---
 
@@ -32,7 +32,7 @@ description: Playbook for using the cmi-agentic-ui MCP server to perform
 
 ## Case A — nested equation models (no structure, e.g. fitting `A*sin(a*x)`)
 
-```jsonc
+```
 add_profile_from_arrays(xarray=[...], yarray=[...], profile_name="sine_profile")
 add_equation_model(model_name="sub", equation_str="a*x")
 add_equation_model(model_name="main", equation_str="A*sin(sub)")
@@ -46,7 +46,7 @@ get_variable(variable_name="main.sub.a")
 
 ## Case B — single PDF model (e.g. Ni), optionally wrapped for a free scale
 
-```jsonc
+```
 add_profile_from_file(profile_path="Ni.gr", profile_name="ni_profile")
 update_profile_meta(profile_name="ni_profile", meta={"qmin": 0.1})
 set_profile_calculation_range(profile_name="ni_profile", xmin=1.5, xmax=20, dx=0.01)
@@ -71,7 +71,7 @@ get_variable(variable_name="ni_model.pdf.phase.lattice.a")   // combined child a
 
 ## Case C — multi-contribution joint refinement (Ni x-ray + Ni neutron + Si x-ray + mixed Si–Ni x-ray)
 
-```jsonc
+```
 add_profile_from_file(profile_path="ni-q27r60-xray.gr", profile_name="ni_xray")
 add_profile_from_file(profile_path="ni-q27r100-neutron.gr", profile_name="ni_neutron")
 add_profile_from_file(profile_path="si-q27r60-xray.gr", profile_name="si_xray")
