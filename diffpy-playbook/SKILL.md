@@ -8,7 +8,7 @@ description: Playbook for using the cmi-agentic-ui MCP server to perform
 
 ## General Guidelines
 
-1. Before starting, call `list_models()` / `list_profiles()` first (session is a shared global singleton, not per-conversation). Call `clear()` to reset.
+1. Before starting, call `list_models()` / `list_profiles()` first (session is a shared global singleton, not per-conversation).
 2. Always ask if you are unsure about the refinement settings. Do not make any
    assumptions.
 
@@ -17,7 +17,17 @@ description: Playbook for using the cmi-agentic-ui MCP server to perform
 - **Always pass explicit `model_name`/`profile_name`.** `add_equation_model`/`add_pdf_model` default `model_name` to a UUID computed once at import time — every omitted call gets the _same_ value. `profile_name` defaults to `None` and gets echoed straight into the confirmation message.
 - **`combine_models(parent_model_name, child_model_names)`: call once per child.** The child is registered into the parent's equation under its own model name. Only an equation model can be a parent.
 - **`add_pdf_model(model_name=..., from_model_name=<existing>)` shares structure, not values.** Lattice/xyz/ADP(Uiso or Biso)/occupancy become the _same_ live object as the source — set them once, on the source, never per clone. Generator params (`scale`, `qdamp`, `qbroad`, `delta1`, `delta2`) are NOT shared — set each clone's separately or tie them with a `solve` constraint. Constrain symmetry on the source **before** cloning.
-- **`solve`**: `profile_names`/`model_names`/`residual_equations`/`weights` must be equal length, one entry per contribution. `constraints` is exactly two dicts: `[0]` helper-variable -> initial value, `[1]` variable -> constraint-equation string. Pass `name=` to inspect later via `list_recipe_parameters`. `include_sgpars=true` auto-adds symmetry-freed structural params instead of listing each one.
+- **`solve`**: `profile_names`/`model_names`/`residual_equations`/`weights` must be equal length, one entry per contribution. `constraints` is exactly two dicts: `[0]` helper-variable -> initial value, `[1]` variable -> constraint-equation string. Pass `name=` to inspect later via `list_recipe_parameters`; the same `name` reuses that recipe. `include_sgpars=true` auto-adds symmetry-freed structural params instead of listing each one.
+- **Recipes and `clear`**:
+  - Same fit, refined further: reuse `name`.
+  - New fit (next profile, new start values, other variables): `clear(recipe_names=["<name>"])` or new `name`; switch data with `set_model_profile`.
+  - Rw compared across fits: also clear and rebuild the models (they keep state from earlier solves).
+  - Re-adding an existing name raises an error: clear it first. Never pass an empty list: it clears everything.
+- **Where to set start values** (before each `solve`):
+  - Helper variables (keys of `constraints[0]`, e.g. `"lattice"`): the value in `constraints[0]` is the start value.
+  - Model parameters (e.g. `"pdf.qdamp"`): `set_variables_value`. This is the start value if the parameter is in `variable_names`, otherwise its fixed value.
+  - Parameters tied in `constraints[1]` take their value from the helper variable; don't set them.
+  - Bounded variables: start well above the lower bound (≥2×); starting at the bound stalls the solver.
 - **Parsing results**: `check_profile_meta`/`list_profiles`/`list_models` -> plain JSON. `get_variable`/`list_model_parameters`/`list_recipe_parameters` -> formatted text (`"Variable 'x': 0.42"`), parse it yourself. `get_model_evaluation`/`get_model_residual` write a JSON array to `data_path`; `get_profile_data` writes `{"xobs":[...], "yobs":[...]}` to `data_path` (no `dyobs`/calculated curve). `solve` returns a fit-report string. Errors come back as `"{ExceptionType}: message"`.
 
 ## Case A — nested equation models (no structure, e.g. fitting `A*sin(a*x)`)
